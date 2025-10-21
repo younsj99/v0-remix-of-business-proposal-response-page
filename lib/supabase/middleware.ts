@@ -7,8 +7,8 @@ export async function updateSession(request: NextRequest) {
   })
 
   const supabase = createServerClient(
-    process.env.SUPABASE_SUPABASE_NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_NEXT_PUBLIC_SUPABASE_ANON_KEY_ANON_KEY!,
+    process.env.SUPABASE_NEXT_PUBLIC_SUPABASE_URL!,
+    proSUPABASE_NEXT_PUBLIC_SUPABASE_ANON_KEY_ANON_KEY!,
     {
       cookies: {
         getAll() {
@@ -30,7 +30,12 @@ export async function updateSession(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   // Protect admin routes
-  if (request.nextUrl.pathname.startsWith("/admin") && !user && !request.nextUrl.pathname.startsWith("/admin/login")) {
+  if (
+    request.nextUrl.pathname.startsWith("/admin") &&
+    !user &&
+    !request.nextUrl.pathname.startsWith("/admin/login") &&
+    !request.nextUrl.pathname.startsWith("/admin/sign-up")
+  ) {
     const url = request.nextUrl.clone()
     url.pathname = "/admin/login"
     return NextResponse.redirect(url)

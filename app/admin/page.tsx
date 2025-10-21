@@ -1,13 +1,14 @@
 import { redirect } from "next/navigation"
 import { createClient } from "@/lib/supabase/server"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import Image from "next/image"
+import { AdminLayout } from "@/components/admin/admin-layout"
 import { DashboardStats } from "@/components/admin/dashboard-stats"
 import { RecentResponses } from "@/components/admin/recent-responses"
 import { ResponseTrends } from "@/components/admin/response-trends"
 import { StatusDistribution } from "@/components/admin/status-distribution"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { ArrowRight } from "lucide-react"
 
 export default async function AdminDashboardPage() {
   const supabase = await createClient()
@@ -42,32 +43,18 @@ export default async function AdminDashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="border-b">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Image src="/logo.png" alt="Team Sparta" width={150} height={30} className="h-8 w-auto" />
-            <h1 className="text-xl font-semibold">채용 관리 시스템</h1>
-          </div>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-muted-foreground">{user.email}</span>
-            <form action={handleSignOut}>
-              <Button variant="outline" type="submit">
-                로그아웃
-              </Button>
-            </form>
-          </div>
-        </div>
-      </header>
-
-      <main className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
+    <AdminLayout userEmail={user.email || ""} onSignOut={handleSignOut}>
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-3xl font-bold">대시보드</h2>
-            <p className="text-muted-foreground">후보자 응답 현황을 한눈에 확인하세요</p>
+            <h1 className="text-3xl font-bold tracking-tight">대시보드</h1>
+            <p className="text-muted-foreground mt-1">후보자 응답 현황을 한눈에 확인하세요</p>
           </div>
-          <Button asChild>
-            <Link href="/admin/candidates/new">새 후보자 추가</Link>
+          <Button asChild size="lg">
+            <Link href="/admin/candidates/new">
+              새 후보자 추가
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Link>
           </Button>
         </div>
 
@@ -78,29 +65,38 @@ export default async function AdminDashboardPage() {
           pendingCount={pendingCount}
         />
 
-        <div className="grid gap-6 md:grid-cols-2 mt-6">
+        <div className="grid gap-6 md:grid-cols-2">
           <StatusDistribution candidates={candidates || []} />
           <ResponseTrends responses={recentResponses || []} />
         </div>
 
-        <div className="mt-6">
-          <RecentResponses responses={recentResponses || []} />
-        </div>
+        <RecentResponses responses={recentResponses || []} />
 
-        <div className="mt-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>후보자 관리</CardTitle>
-              <CardDescription>모든 후보자 목록을 확인하고 관리하세요</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button asChild className="w-full">
-                <Link href="/admin/candidates">후보자 목록 보기</Link>
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
-      </main>
-    </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>빠른 작업</CardTitle>
+            <CardDescription>자주 사용하는 기능에 빠르게 접근하세요</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-2">
+            <Button asChild variant="outline" className="h-auto py-4 justify-start bg-transparent">
+              <Link href="/admin/candidates">
+                <div className="text-left">
+                  <div className="font-semibold">후보자 목록</div>
+                  <div className="text-sm text-muted-foreground">모든 후보자 확인 및 관리</div>
+                </div>
+              </Link>
+            </Button>
+            <Button asChild variant="outline" className="h-auto py-4 justify-start bg-transparent">
+              <Link href="/admin/candidates/new">
+                <div className="text-left">
+                  <div className="font-semibold">새 후보자 추가</div>
+                  <div className="text-sm text-muted-foreground">맞춤형 제안 페이지 생성</div>
+                </div>
+              </Link>
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    </AdminLayout>
   )
 }
