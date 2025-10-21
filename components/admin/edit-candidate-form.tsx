@@ -8,18 +8,29 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { createClient } from "@/lib/supabase/client"
-import { logActivity } from "@/lib/activity-logger"
+import { AlertCircle } from "lucide-react"
 
-export function NewCandidateForm() {
+interface EditCandidateFormProps {
+  candidate: {
+    id: string
+    name: string
+    position: string
+    track: string
+    experience: string
+  }
+}
+
+export function EditCandidateForm({ candidate }: EditCandidateFormProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [formData, setFormData] = useState({
-    name: "",
-    position: "",
-    track: "",
-    experience: "",
+    name: candidate.name,
+    position: candidate.position,
+    track: candidate.track,
+    experience: candidate.experience,
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -30,45 +41,23 @@ export function NewCandidateForm() {
     try {
       const supabase = createClient()
 
-      // Get current user
-      const {
-        data: { user },
-      } = await supabase.auth.getUser()
-
-      // Generate unique token
-      const uniqueToken = crypto.randomUUID()
-
-      const { data: newCandidate, error: insertError } = await supabase
+      const { error: updateError } = await supabase
         .from("candidates")
-        .insert({
+        .update({
           name: formData.name,
           position: formData.position,
           track: formData.track,
           experience: formData.experience,
-          unique_token: uniqueToken,
-          status: "created",
+          updated_at: new Date().toISOString(),
         })
-        .select()
-        .single()
+        .eq("id", candidate.id)
 
-      if (insertError) throw insertError
+      if (updateError) throw updateError
 
-      await logActivity({
-        candidateId: newCandidate.id,
-        actionType: "candidate_created",
-        actionDescription: `새 후보자 생성: ${formData.name} (${formData.position})`,
-        performedBy: user?.email || "Unknown",
-        metadata: {
-          position: formData.position,
-          track: formData.track,
-          experience: formData.experience,
-        },
-      })
-
-      router.push("/admin/candidates")
+      router.push(`/admin/candidates/${candidate.id}`)
       router.refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : "후보자 생성 중 오류가 발생했습니다")
+      setError(err instanceof Error ? err.message : "수정 중 오류가 발생했습니다")
     } finally {
       setIsLoading(false)
     }
@@ -77,8 +66,8 @@ export function NewCandidateForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>후보자 정보</CardTitle>
-        <CardDescription>아래 4가지 필수 항목을 입력해주세요</CardDescription>
+        <CardTitle>후보자 정보 수정</CardTitle>
+        <CardDescription>후보자의 기본 정보를 수정합니다</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -89,7 +78,6 @@ export function NewCandidateForm() {
               required
               value={formData.name}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              placeholder="홍길동"
             />
           </div>
 
@@ -100,7 +88,6 @@ export function NewCandidateForm() {
               required
               value={formData.position}
               onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-              placeholder="백엔드 개발자"
             />
           </div>
 
@@ -111,7 +98,6 @@ export function NewCandidateForm() {
               required
               value={formData.track}
               onChange={(e) => setFormData({ ...formData, track: e.target.value })}
-              placeholder="웹 개발"
             />
           </div>
 
@@ -122,15 +108,24 @@ export function NewCandidateForm() {
               required
               value={formData.experience}
               onChange={(e) => setFormData({ ...formData, experience: e.target.value })}
-              placeholder="3년"
             />
           </div>
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
-          <Button type="submit" className="w-full" disabled={isLoading}>
-            {isLoading ? "생성 중..." : "후보자 페이지 생성"}
-          </Button>
+          <div className="flex gap-2">
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "저장 중..." : "변경사항 저장"}
+            </Button>
+            <Button type="button" variant="outline" onClick={() => router.back()}>
+              취소
+            </Button>
+          </div>
         </form>
       </CardContent>
     </Card>

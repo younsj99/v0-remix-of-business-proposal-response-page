@@ -7,6 +7,9 @@ import { DashboardStats } from "@/components/admin/dashboard-stats"
 import { RecentResponses } from "@/components/admin/recent-responses"
 import { ResponseTrends } from "@/components/admin/response-trends"
 import { StatusDistribution } from "@/components/admin/status-distribution"
+import { ConversionFunnel } from "@/components/admin/conversion-funnel"
+import { TimeToHireStats } from "@/components/admin/time-to-hire-stats"
+import { EngagementMetrics } from "@/components/admin/engagement-metrics"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowRight } from "lucide-react"
 
@@ -29,6 +32,8 @@ export default async function AdminDashboardPage() {
     .select("*, candidates(*)")
     .order("created_at", { ascending: false })
     .limit(10)
+
+  const { data: pageViews } = await supabase.from("candidate_page_views").select("*")
 
   const totalCandidates = candidates?.length || 0
   const acceptedCount = candidates?.filter((c) => c.status === "accepted").length || 0
@@ -66,9 +71,20 @@ export default async function AdminDashboardPage() {
         />
 
         <div className="grid gap-6 md:grid-cols-2">
-          <StatusDistribution candidates={candidates || []} />
-          <ResponseTrends responses={recentResponses || []} />
+          <ConversionFunnel candidates={candidates || []} />
+          <TimeToHireStats candidates={candidates || []} />
         </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <EngagementMetrics
+            candidates={candidates || []}
+            pageViews={pageViews || []}
+            responses={recentResponses || []}
+          />
+          <StatusDistribution candidates={candidates || []} />
+        </div>
+
+        <ResponseTrends responses={recentResponses || []} />
 
         <RecentResponses responses={recentResponses || []} />
 

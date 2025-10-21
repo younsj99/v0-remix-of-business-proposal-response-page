@@ -6,7 +6,7 @@ import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import { LayoutDashboard, Users, UserPlus, LogOut, Menu, X } from "lucide-react"
+import { LayoutDashboard, Users, UserPlus, LogOut, Menu, X, Activity } from "lucide-react"
 import { useState } from "react"
 
 interface AdminLayoutProps {
@@ -23,6 +23,7 @@ export function AdminLayout({ children, userEmail, onSignOut }: AdminLayoutProps
     { name: "대시보드", href: "/admin", icon: LayoutDashboard },
     { name: "후보자 목록", href: "/admin/candidates", icon: Users },
     { name: "새 후보자", href: "/admin/candidates/new", icon: UserPlus },
+    { name: "활동 로그", href: "/admin/activity", icon: Activity },
   ]
 
   return (

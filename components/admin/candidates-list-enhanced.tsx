@@ -3,13 +3,15 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Copy, ExternalLink, Search, Filter } from "lucide-react"
+import { Copy, ExternalLink, Eye } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { ko } from "date-fns/locale"
 import { useState, useMemo } from "react"
 import { cn } from "@/lib/utils"
+import Link from "next/link"
+import { AdvancedFilters } from "./advanced-filters"
+import { exportToCSV, exportToJSON } from "@/lib/export-utils"
+import { startOfDay, endOfDay, isWithinInterval } from "date-fns"
 
 interface Candidate {
   id: string
@@ -30,6 +32,19 @@ export function CandidatesListEnhanced({ candidates }: CandidatesListEnhancedPro
   const [copiedId, setCopiedId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  const [positionFilter, setPositionFilter] = useState<string>("all")
+  const [trackFilter, setTrackFilter] = useState<string>("all")
+  const [dateFrom, setDateFrom] = useState<Date | undefined>()
+  const [dateTo, setDateTo] = useState<Date | undefined>()
+
+  // Extract unique positions and tracks
+  const positions = useMemo(() => {
+    return Array.from(new Set(candidates.map((c) => c.position))).sort()
+  }, [candidates])
+
+  const tracks = useMemo(() => {
+    return Array.from(new Set(candidates.map((c) => c.track))).sort()
+  }, [candidates])
 
   const getStatusBadge = (status: string) => {
     const variants = {
@@ -59,69 +74,104 @@ export function CandidatesListEnhanced({ candidates }: CandidatesListEnhancedPro
         candidate.track.toLowerCase().includes(searchQuery.toLowerCase())
 
       const matchesStatus = statusFilter === "all" || candidate.status === statusFilter
+      const matchesPosition = positionFilter === "all" || candidate.position === positionFilter
+      const matchesTrack = trackFilter === "all" || candidate.track === trackFilter
 
-      return matchesSearch && matchesStatus
+      let matchesDate = true
+      if (dateFrom || dateTo) {
+        const candidateDate = new Date(candidate.created_at)
+        if (dateFrom && dateTo) {
+          matchesDate = isWithinInterval(candidateDate, {
+            start: startOfDay(dateFrom),
+            end: endOfDay(dateTo),
+          })
+        } else if (dateFrom) {
+          matchesDate = candidateDate >= startOfDay(dateFrom)
+        } else if (dateTo) {
+          matchesDate = candidateDate <= endOfDay(dateTo)
+        }
+      }
+
+      return matchesSearch && matchesStatus && matchesPosition && matchesTrack && matchesDate
     })
-  }, [candidates, searchQuery, statusFilter])
+  }, [candidates, searchQuery, statusFilter, positionFilter, trackFilter, dateFrom, dateTo])
+
+  const activeFiltersCount = useMemo(() => {
+    let count = 0
+    if (searchQuery) count++
+    if (statusFilter !== "all") count++
+    if (positionFilter !== "all") count++
+    if (trackFilter !== "all") count++
+    if (dateFrom) count++
+    if (dateTo) count++
+    return count
+  }, [searchQuery, statusFilter, positionFilter, trackFilter, dateFrom, dateTo])
+
+  const handleReset = () => {
+    setSearchQuery("")
+    setStatusFilter("all")
+    setPositionFilter("all")
+    setTrackFilter("all")
+    setDateFrom(undefined)
+    setDateTo(undefined)
+  }
+
+  const handleExport = (format: "csv" | "json") => {
+    const exportData = filteredCandidates.map((c) => ({
+      이름: c.name,
+      포지션: c.position,
+      트랙: c.track,
+      경력: c.experience,
+      상태: c.status,
+      생성일: c.created_at,
+      URL: `${window.location.origin}/offer/${c.unique_token}`,
+    }))
+
+    const filename = `candidates_${new Date().toISOString().split("T")[0]}`
+
+    if (format === "csv") {
+      exportToCSV(exportData, filename)
+    } else {
+      exportToJSON(exportData, filename)
+    }
+  }
 
   return (
     <div className="space-y-4">
-      {/* Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="이름, 포지션, 트랙으로 검색..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-full sm:w-[180px]">
-                <Filter className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="상태 필터" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">전체</SelectItem>
-                <SelectItem value="created">생성됨</SelectItem>
-                <SelectItem value="sent">발송됨</SelectItem>
-                <SelectItem value="viewed">열람함</SelectItem>
-                <SelectItem value="accepted">수락함</SelectItem>
-                <SelectItem value="declined">거절함</SelectItem>
-                <SelectItem value="inquiry">문의</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      <AdvancedFilters
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        statusFilter={statusFilter}
+        setStatusFilter={setStatusFilter}
+        positionFilter={positionFilter}
+        setPositionFilter={setPositionFilter}
+        trackFilter={trackFilter}
+        setTrackFilter={setTrackFilter}
+        dateFrom={dateFrom}
+        setDateFrom={setDateFrom}
+        dateTo={dateTo}
+        setDateTo={setDateTo}
+        onReset={handleReset}
+        onExport={handleExport}
+        positions={positions}
+        tracks={tracks}
+        activeFiltersCount={activeFiltersCount}
+      />
 
-      {/* Results count */}
       <div className="text-sm text-muted-foreground">
         {filteredCandidates.length}개의 후보자
-        {searchQuery || statusFilter !== "all" ? ` (필터 적용됨)` : ""}
+        {activeFiltersCount > 0 && ` (${activeFiltersCount}개 필터 적용됨)`}
       </div>
 
-      {/* Candidates list */}
       {filteredCandidates.length === 0 ? (
         <Card>
           <CardContent className="py-12">
             <div className="text-center space-y-2">
               <p className="text-muted-foreground">
-                {searchQuery || statusFilter !== "all"
-                  ? "검색 조건에 맞는 후보자가 없습니다"
-                  : "아직 후보자가 없습니다"}
+                {activeFiltersCount > 0 ? "검색 조건에 맞는 후보자가 없습니다" : "아직 후보자가 없습니다"}
               </p>
-              {(searchQuery || statusFilter !== "all") && (
-                <Button
-                  variant="link"
-                  onClick={() => {
-                    setSearchQuery("")
-                    setStatusFilter("all")
-                  }}
-                >
+              {activeFiltersCount > 0 && (
+                <Button variant="link" onClick={handleReset}>
                   필터 초기화
                 </Button>
               )}
@@ -136,7 +186,9 @@ export function CandidatesListEnhanced({ candidates }: CandidatesListEnhancedPro
                 <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                   <div className="space-y-3 flex-1">
                     <div className="flex items-center gap-3 flex-wrap">
-                      <h3 className="text-lg font-semibold">{candidate.name}</h3>
+                      <Link href={`/admin/candidates/${candidate.id}`} className="hover:underline">
+                        <h3 className="text-lg font-semibold">{candidate.name}</h3>
+                      </Link>
                       {getStatusBadge(candidate.status)}
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
@@ -166,6 +218,12 @@ export function CandidatesListEnhanced({ candidates }: CandidatesListEnhancedPro
                     </div>
                   </div>
                   <div className="flex gap-2 lg:flex-col">
+                    <Button variant="default" size="sm" className="flex-1 lg:flex-none" asChild>
+                      <Link href={`/admin/candidates/${candidate.id}`}>
+                        <Eye className="h-4 w-4 mr-2" />
+                        상세보기
+                      </Link>
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
