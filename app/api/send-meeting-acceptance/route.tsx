@@ -1,6 +1,8 @@
 import { Resend } from "resend"
 import { NextResponse } from "next/server"
 import { isValidEmail, sanitizeHtml, sanitizeText, checkRateLimit } from "@/lib/validation"
+import { createClient } from "@/lib/supabase/server"
+import { sendSlackNotification } from "@/lib/slack"
 
 const resend = new Resend(process.env.RESEND_API_KEY)
 
@@ -16,6 +18,7 @@ export async function POST(request: Request) {
     const name = sanitizeText(body.name, 100)
     const email = sanitizeText(body.email, 254)
     const contact = sanitizeText(body.contact, 20)
+    const candidate_id = body.candidate_id
 
     if (!name || !email) {
       return NextResponse.json({ error: "이름과 이메일은 필수 입력 항목입니다." }, { status: 400 })
@@ -23,6 +26,18 @@ export async function POST(request: Request) {
 
     if (!isValidEmail(email)) {
       return NextResponse.json({ error: "올바른 이메일 주소를 입력해주세요." }, { status: 400 })
+    }
+
+    if (candidate_id) {
+      const supabase = await createClient()
+
+      await supabase.from("candidates").update({ status: "accepted" }).eq("id", candidate_id)
+
+      await supabase.from("candidate_responses").insert({
+        candidate_id,
+        response_type: "accepted",
+        response_data: { name, email, contact },
+      })
     }
 
     const { data, error } = await resend.emails.send({
@@ -40,6 +55,16 @@ export async function POST(request: Request) {
     if (error) {
       return NextResponse.json({ error: "이메일 전송에 실패했습니다." }, { status: 500 })
     }
+
+    await sendSlackNotification(`✅ 새로운 인터뷰 수락: ${name}`, [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*새로운 인터뷰 수락이 접수되었습니다*\n\n*이름:* ${name}\n*이메일:* ${email}\n*연락처:* ${contact || "미입력"}`,
+        },
+      },
+    ])
 
     return NextResponse.json({ data })
   } catch (error) {

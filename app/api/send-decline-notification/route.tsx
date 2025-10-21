@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { isValidEmail, sanitizeHtml, sanitizeText, checkRateLimit } from "@/lib/validation"
+import { createClient } from "@/lib/supabase/server"
+import { sendSlackNotification } from "@/lib/slack"
 
 export async function POST(request: Request) {
   try {
@@ -10,7 +12,7 @@ export async function POST(request: Request) {
 
     const body = await request.json()
 
-    const recipient = sanitizeText(body.recipient, 100)
+    const candidate_id = body.candidate_id
     const allowContact = Boolean(body.allowContact)
     const name = body.name ? sanitizeText(body.name, 100) : ""
     const email = body.email ? sanitizeText(body.email, 254) : ""
@@ -18,6 +20,18 @@ export async function POST(request: Request) {
 
     if (allowContact && email && !isValidEmail(email)) {
       return NextResponse.json({ error: "올바른 이메일 주소를 입력해주세요." }, { status: 400 })
+    }
+
+    if (candidate_id) {
+      const supabase = await createClient()
+
+      await supabase.from("candidates").update({ status: "declined" }).eq("id", candidate_id)
+
+      await supabase.from("candidate_responses").insert({
+        candidate_id,
+        response_type: allowContact ? "declined" : "declined_no_contact",
+        response_data: allowContact ? { name, email, phone } : {},
+      })
     }
 
     const response = await fetch("https://api.resend.com/emails", {
@@ -32,7 +46,6 @@ export async function POST(request: Request) {
         subject: "제안 거절 알림",
         html: `
           <h2>제안이 거절되었습니다</h2>
-          <p><strong>거절한 사용자:</strong> ${recipient ? sanitizeHtml(recipient) : "식별 정보 없음"}</p>
           <p><strong>추후 연락 가능 여부:</strong> ${allowContact ? "연락주세요 ✅" : "괜찮아요 ❌"}</p>
           ${
             allowContact && email
@@ -54,6 +67,22 @@ export async function POST(request: Request) {
       console.error("Resend API error:", errorData)
       return NextResponse.json({ error: "이메일 전송에 실패했습니다." }, { status: response.status })
     }
+
+    const slackMessage = allowContact ? `❌ 제안 거절 (연락 희망): ${name || email}` : "❌ 제안 거절 (연락 불필요)"
+
+    const slackBlocks = [
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: allowContact
+            ? `*제안이 거절되었습니다 (연락 희망)*\n\n${name ? `*이름:* ${name}\n` : ""}*이메일:* ${email}\n${phone ? `*전화번호:* ${phone}` : ""}`
+            : "*제안이 거절되었습니다*\n\n후보자가 추후 연락을 원하지 않습니다.",
+        },
+      },
+    ]
+
+    await sendSlackNotification(slackMessage, slackBlocks)
 
     return NextResponse.json({ success: true })
   } catch (error) {
